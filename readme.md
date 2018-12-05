@@ -1,4 +1,6 @@
 # Grapes Chat
+## 服务端地址
+[SocketChatServer](https://github.com/Grapedge/SocketChatServer)
 ## 介绍
 - 微软学生俱乐部的作业
 - 真的不想用 Swing 
