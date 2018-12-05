@@ -1,109 +1,76 @@
 import java.awt.event.ActionEvent
 import java.awt.event.ActionListener
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.PrintWriter
-import java.net.Socket
-import javax.swing.*
+import java.io.File
+import javax.swing.JOptionPane
+import kotlin.system.exitProcess
 
+// 全局变量
 const val HOST = "127.0.0.1"
-const val PORT = 3366
+const val PORT = 3366   // 聊天端口
+const val FILE_PORT = PORT + 1  // 文件传输端口
+const val FILE_PATH = "D:\\\\GrapesChat\\ClientFile\\"
 
 fun main(args : Array<String>) {
+    val main = Main()
+    // 尝试加载客户端
     try {
-        ChatClient("Grapes Chat", HOST, PORT)
+        ChatClient(main, HOST, PORT, FILE_PORT, FILE_PATH)
     } catch (e: Exception) {
         println(e.message)
+        main.showMessage("网络连接错误：${e.message}")
+        exitProcess(0)
     }
 }
 
-class ChatFrame(title: String) : JFrame(title) {
+// 负责 UI 更新以及逻辑处理
+class Main : ActionListener, ChatClientHandler {
+    private lateinit var client: ChatClient
 
-    val textArea = JTextArea(20, 50)
-    val inputText: String
-        get() {
-            var str = sendInput.text
-            sendInput.text = ""
-            return str
-        }
-
-    private val sendInput = JTextField(30)
-    private val scrollPanel = JScrollPane(textArea)
-    private val mainPanel = JPanel()
-
-    private val sendButton = JButton("发送")
-
-
-
-    init {
-        initUI()
+    // 设置 Socket
+    override fun setClient(chatClient: ChatClient) {
+        client = chatClient
     }
 
-    // 设置UI事件
-    fun handleUI(listener: ActionListener) {
-        sendButton.addActionListener(listener)
-    }
+    // 窗体
+    private val frame = ChatFrame("Grapes Chat")
 
-    // 初始化 UI
-    private fun initUI() {
-        defaultCloseOperation = JFrame.EXIT_ON_CLOSE
-
-        textArea.lineWrap = true
-        textArea.wrapStyleWord = true
-        textArea.isEditable = false
-
-        scrollPanel.verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS
-        scrollPanel.horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
-
-        mainPanel.add(scrollPanel)
-        mainPanel.add(sendInput)
-        mainPanel.add(sendButton)
-        contentPane.add(mainPanel)
-        setSize(600, 420)
-        setLocationRelativeTo(null)
-    }
-
-    fun showUI() {
-        isVisible = true
-    }
-}
-
-class ChatClient(title: String, host: String, port: Int) : Socket(host, port), ActionListener {
-
-    var reader = BufferedReader(InputStreamReader(inputStream))
-    var writer = PrintWriter(outputStream, true)
-    // Click event here
-    override fun actionPerformed(e: ActionEvent?) {
-        println("Send message here")
-        writer.println(frame.inputText)
-    }
-
-    var frame = ChatFrame(title)
     init {
         frame.showUI()
-        frame.handleUI(this)
-        ChatReader(reader, frame.textArea)
-        println("加载完成")
+        frame.handleUIEvent(this)
     }
 
-
-}
-
-class ChatReader(var reader: BufferedReader, var textArea: JTextArea) : Thread() {
-    init {
-        start()
+    // 在聊天区域增加消息
+    override fun appendMessage(msg: String) {
+        frame.textArea.append(msg)
     }
 
-    override fun run() {
-        try {
-            var message = reader.readLine()
-            while (message != null) {
-                println("receive: $message")
-                textArea.append("$message\n")
-                message = reader.readLine()
+    // 各种按钮（或其他）的动作事件
+    override fun actionPerformed(e: ActionEvent?) {
+        when (e?.actionCommand) {
+            "发送" -> {
+                // 发送信息
+                client.send(Message(0, frame.inputText, null))
             }
-        } catch (e: Exception) {
-            println(e.message)
+            "文件" -> {
+                // 在输入框输入文件地址后将其发送
+                val file = File(frame.inputText)
+                if (file.exists()) {
+                    client.send(Message(1, "发送文件：${file.name}", file))
+                } else {
+                    showMessage("文件不存在，请检查。\n发送示例：E:\\\\test.txt")
+                }
+            }
         }
     }
+
+    // 显示一个对话框
+    override fun showMessage(msg: String) {
+        JOptionPane.showMessageDialog(frame, msg)
+    }
+
+    // 如果文件开始发送，禁用这个按钮
+    override fun setFileSendState(start: Boolean) {
+        frame.setSendFileButtonActive(!start)
+    }
 }
+
